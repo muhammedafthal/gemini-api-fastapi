@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from google import genai
-from google.genai import types
+from google.genai import types, errors
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -45,5 +45,35 @@ def ask_question(payload: QuestionRequest):
             "output_tokens": usage.candidates_token_count if usage else None,
             "response": response.text,
         }
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Something wrong!")
+    except errors.APIError as e:
+        if e.message == "API key not valid. Please pass a valid API key.":
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication failed."
+            )
+        elif e.code == 400:
+            raise HTTPException(
+                status_code=400,
+                detail="The request sent to Gemini is invalid."
+            )
+        elif e.code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="You've exceeded a quota or rate limit."
+            )
+        elif e.code == 500:
+            raise HTTPException(
+                status_code=500,
+                detail="Something went wrong on the AI provider's side."
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="An error occurred while communicating with the AI service."
+            )
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected server error occurred."
+        )
